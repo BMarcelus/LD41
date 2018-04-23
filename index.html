@@ -1,0 +1,2255 @@
+<style>
+body {
+  margin: 0;
+  padding: 0;
+  background: #334;
+}
+#gc {
+  /* border: 1px solid black; */
+  padding: 0;
+  display: block;
+  margin: 0;
+  /* width: 100%;   */
+}
+</style>
+<canvas id="gc"></canvas>
+<!-- <audio id="rsong" src="./RealSong1.mp3"></audio> -->
+<script>
+var CE = document.getElementById('gc');
+// var song = document.getElementById('rsong');
+// song.play();
+// song.loop=true;
+myAudio = new Audio('./RealSong1.mp3'); 
+if (typeof myAudio.loop == 'boolean')
+{
+    myAudio.loop = true;
+}
+else
+{
+    myAudio.addEventListener('ended', function() {
+        this.currentTime = 0;
+        this.play();
+    }, false);
+}
+myAudio.volume=.5;
+myAudio.play();
+CE.width = window.innerWidth;
+CE.height = window.innerHeight;
+// CE.width = 680;
+// CE.height = 480;
+var canvas = CE.getContext('2d');
+
+    canvas.textAlign = 'center';
+    canvas.textBaseline='middle';
+
+window.addEventListener('resize', function() {
+  CE.width = window.innerWidth;
+  CE.height = window.innerHeight;
+  canvas.textAlign = 'center';
+  canvas.textBaseline='middle';
+})
+
+var AUDIOCONTEXT;// = new audioContext();
+// try{AUDIOCONTEXT=webkitAudioContext}catch(e){AUDIOCONTEXT=AudioContext}AUDIOCONTEXT=new AUDIOCONTEXT();
+if('webkitAudioContext' in window) {
+  AUDIOCONTEXT = new webkitAudioContext();
+} else {
+  AUDIOCONTEXT = new AudioContext();
+}
+// oscillator.stop(time + .3);
+
+// try{A=webkitAudioContext}catch(e){A=AudioContext}A=new A();
+
+
+var GAIN = AUDIOCONTEXT.createGain();
+var volume = 50;
+GAIN.gain.setValueAtTime(volume/100, 0);
+GAIN.connect(AUDIOCONTEXT.destination);
+var DESTINATION = GAIN;
+
+function setVolume(v) {
+  volume = v;
+  if(volume<0)volume=0;
+  if(volume>100)volume=100;
+  GAIN.gain.setValueAtTime(volume/100, 0);
+}
+
+function setUpSoundMobile(){
+  if(this.done)return;
+  var A = AUDIOCONTEXT;  
+  var o=A.createOscillator();
+  var T=A.currentTime;
+  o.connect(DESTINATION);
+  o.start(0);
+  o.stop(0);//T+.07);
+  o.type="square";
+  // o.frequency.setValueAtTime(440,T+.03);
+  this.done=true;
+};
+
+// function d() {
+//   var r = [];
+//   for(var i = 0; i< 100; i++) {
+//     r.push((Math.random()+i)/10);
+//   }
+//   return r;
+// }
+
+// var wave = AUDIOCONTEXT.createPeriodicWave(d(),d(), {disableNormalization: true});
+
+var MorphType = {
+  // no easing, no acceleration
+  linear: function (t) { return t },
+  // accelerating from zero velocity
+  easeInQuad: function (t) { return t*t },
+  // decelerating to zero velocity
+  easeOutQuad: function (t) { return t*(2-t) },
+  // acceleration until halfway, then deceleration
+  easeInOutQuad: function (t) { return t<.5 ? 2*t*t : -1+(4-2*t)*t },
+  // accelerating from zero velocity 
+  easeInCubic: function (t) { return t*t*t },
+  // decelerating to zero velocity 
+  easeOutCubic: function (t) { return (--t)*t*t+1 },
+  // acceleration until halfway, then deceleration 
+  easeInOutCubic: function (t) {
+    var map = MorphType['easeInOutCubic'].map;
+    var s = map[t];
+    if(s!=undefined)return s;
+    var r = t<.5 ? 4*t*t*t : (t-1)*(2*t-2)*(2*t-2)+1;
+    map[t] = r;
+    return r;
+    },
+  // accelerating from zero velocity 
+  easeInQuart: function (t) { return t*t*t*t },
+  // decelerating to zero velocity 
+  easeOutQuart: function (t) { return 1-(--t)*t*t*t },
+  // acceleration until halfway, then deceleration
+  easeInOutQuart: function (t) { return t<.5 ? 8*t*t*t*t : 1-8*(--t)*t*t*t },
+  // accelerating from zero velocity
+  easeInQuint: function (t) { return t*t*t*t*t },
+  // decelerating to zero velocity
+  easeOutQuint: function (t) { return 1+(--t)*t*t*t*t },
+  // acceleration until halfway, then deceleration 
+  easeInOutQuint: function (t) { return t<.5 ? 16*t*t*t*t*t : 1+16*(--t)*t*t*t*t }
+}
+for(var i in MorphType) MorphType[i].map = {};
+
+class SoundEffect {
+  constructor(frames, type) {
+    this.type = type||'triangle';
+    this.frames = frames;
+    this.length = 0;
+    for(var i=0;i<frames.length;i++)this.length += frames[i][2];
+  }
+
+  play() {
+    var volume = 1;
+    var audioContext= AUDIOCONTEXT;
+    var destination = DESTINATION;
+    var time = audioContext.currentTime;    
+    var gain = audioContext.createGain();
+    var stopTime = time+this.length;
+    var oscillator = audioContext.createOscillator();
+    oscillator.start(time);
+    oscillator.stop(stopTime);
+    oscillator.type=this.type;
+    // oscillator.setPeriodicWave(wave);
+    // oscillator.frequency.setValueAtTime(this.frqData[0], time);
+    // gain.gain.setValueAtTime(this.volData[0]*volume, time);
+    oscillator.connect(gain);
+    gain.connect(destination);
+    this.applyData(oscillator, gain, time, volume);
+    oscillator.stopSound = function() {
+      try {
+        this.disconnect(gain);
+      } catch(e) {
+        console.log(e);
+      }
+    };
+    return oscillator;
+  }
+  noise() {
+    return 0;//(Math.random()-Math.random()) * 100;
+  }
+  applyData(oscillator, gain, time, volume) {
+    var lastFrq = 0;
+    var lastAmp = 0;
+    for(var i=0;i<this.frames.length;i++) {
+      var frame = this.frames[i];
+      var frq = frame[0];
+      var amp = frame[1] * volume;
+      var len = frame[2];
+      var sub = frame[3] || 0;
+      // sub += 1000;
+      oscillator.frequency.setValueAtTime(frq + this.noise(), time);
+      gain.gain.setValueAtTime(amp, time);
+      if(sub) {
+        for(var j=0;j<sub;j+=1) {
+          var t = j/sub;
+          if(frame[4]) t=frame[4](t);
+          var f = lastFrq + (frq-lastFrq) * t;
+          var a = lastAmp + (amp-lastAmp) * t;
+          oscillator.frequency.setValueAtTime(f+ this.noise(), time);
+          gain.gain.setValueAtTime(a, time);
+          time+=len/sub;
+        }
+      } else {
+        time += len;
+      }
+      lastFrq = frq;
+      lastAmp = amp;
+    }
+  }
+}
+
+function backAndForth(array,frq1,amp1,frq2,amp2,rate,length, inbtwns, type) {
+  for(var i=0;i<length;i++) {
+    array.push([frq1, amp1, rate, inbtwns, type])
+    array.push([frq2, amp2, rate, inbtwns, type])
+  }
+  return array;
+}
+
+
+function oscil(array, length, frq, dfrq,ofrq,offrq, amp, rate, inbtwns, type) {
+  for(var i=0;i<length;i++) {
+    var f = Math.cos(i*ofrq+offrq)*dfrq + frq;
+    array.push([f, amp, rate, inbtwns, type]);
+  }
+  return array;
+}
+
+function oscilasdf(array, length, frq, dfrq,ofrq, amp, rate, inbtwns, type) {
+  for(var i=0;i<length;i++) {
+    var f = Math.cos(i*ofrq)*dfrq + frq - i;
+    array.push([f, amp-i/length, rate, inbtwns, type]);
+    rate+=.0001;
+  }
+  return array;
+}
+
+var SOUNDS = {};
+SOUNDS.press = new SoundEffect([
+  [330, 1, .05, 0], 
+  [330, 0, .05, 10, MorphType.easeOutCubic],
+])
+SOUNDS.select = new SoundEffect([
+  [550, 0, 0],
+  [660, .25, .01, 10, MorphType.easeInOutCubic],
+  [660, 0, .2, 20, MorphType.easeOutCubic]
+])
+SOUNDS.blup = new SoundEffect([
+  [220, 1, .01],
+  [330, 1, .01],
+  [220, 1, .01],
+  [330, 1, .01],
+])
+SOUNDS.hover = new SoundEffect([
+  [330, .5, .01],
+  [330, 0, .2, 20, MorphType.easeInOutCubic],
+  // [440, 0, .2, 20, MorphType.easeInOutCubic],
+])
+// SOUNDS.hover = new SoundEffect(backAndForth([], 1200, 1, 100, 1, .01, 10, 2))
+SOUNDS.tink = new SoundEffect(oscilasdf([], 50, 3000, 20, Math.PI/5, 1, .001, 1), 'sine');
+SOUNDS.cry1 = new SoundEffect(oscilasdf([], 100, 1000, 20, Math.PI/10, 1, .005, 1));
+// SOUNDS.hover = new SoundEffect(oscil([], 100, 440, 440,Math.PI/10,Math.PI*0, .9, .01, 20));
+SOUNDS.bloopNoise = new SoundEffect(oscil([], 100, 2000, 880, Math.PI*1.2,0, .8, .001, 1));
+// SOUNDS.hover = new SoundEffect(oscilasdf([], 100, 3000, 220, Math.PI/2, .8, .01, 2));
+
+
+SOUNDS.tink = new SoundEffect(function() {
+  var r = [];
+  var len = 100;
+  for(var i=0;i<len;i++) {
+    r.push([
+      3000+(Math.random()-.5)*(300+200*i/len), (1-i/len)/2, .001, 1
+    ])
+  }
+  r.push([
+    2000, 0, .1, 20
+  ])
+  return r;
+}(), 'sine');
+
+SOUNDS.sizzle = new SoundEffect(function() {
+  var r = [];
+  var len = 1000;
+  for(var i=0;i<len;i++) {
+    r.push([
+      3000+(Math.random()-.5)*(600-200*i/len), (1-i/len)/2, .001, 1
+    ])
+  }
+  return r;
+}(), 'square');
+
+SOUNDS.sizzleDone = new SoundEffect(function() {
+  var r = [];
+  var len = 600;
+  for(var i=0;i<len;i++) {
+    r.push([
+      3000+(Math.random()-.5)*(500-100*i/len)+200*i/len, (1-i/len)*.3, .001, 1
+    ])
+  }
+  return r;
+}(), 'square');
+
+
+SOUNDS.sizzleBurn = new SoundEffect(function() {
+  var r = [];
+  var len = 900;
+  for(var i=0;i<len;i++) {
+    r.push([
+      2000+(Math.random()-.5)*(700-200*i/len), (1-i/len)/2, .001, 1
+    ])
+  }
+  return r;
+}(), 'square');
+
+
+SOUNDS.plop = new SoundEffect(function() {
+  var r = [];
+  var len = 100;
+  for(var i=0;i<len;i++) {
+    r.push([
+      800+(Math.random()-.5)*(200+100*i/len), (1-i/len), .001, 10
+    ])
+  }
+  return r;
+}(), 'sine');
+
+
+SOUNDS.trash = new SoundEffect(function() {
+  var r = [];
+  var len = 100;
+  for(var i=0;i<len;i++) {
+    r.push([
+      500+(Math.random()-.5)*(200+100*i/len)-i/len*300, (1-i/len/2), .002, 10
+    ])
+  }
+  r.push([100,0,.1,10]);
+  return r;
+}(), 'square');
+
+SOUNDS.hover = new SoundEffect(function() {
+  var r = [
+    [330, .4, 0],
+    [200, 0, .015, 10],
+  ];
+  return r;
+}(), 'square');
+SOUNDS.press = new SoundEffect(function() {
+  var r = [
+  ];
+  return r;
+}(), 'square');
+// SOUNDS.select=SOUNDS.blup;
+SOUNDS.select = new SoundEffect(function() {
+  var r = [
+    [440, .4, 0],
+    [550, 0, .015, 10],
+  ];
+  return r;
+}(), 'square');
+
+SOUNDS.error = new SoundEffect(function() {
+  var r = [];
+  var len = 100;
+  for(var i=0;i<len;i++) {
+    r.push([
+      400+(Math.random()-.5)*(0+0*i/len)+i/len*0+Math.cos(i*i*Math.PI/20)*100, (1-i/len/2), .002, 1
+    ])
+  }
+  r.push([100,0,.1,10]);
+  return r;
+}(), 'square');
+
+SOUNDS.die = new SoundEffect(function() {
+  var r = [];
+  var len = 80;
+  for(var i=0;i<len;i++) {
+    r.push([
+      400+(Math.random()-.5)*(0+0*i/len)-i/len*100+Math.cos(i*i*Math.PI/20)*50, (1-i/len)/2, .004, 1
+    ])
+  }
+  r.push([100,0,.1,10]);
+  return r;
+}(), 'square');
+
+SOUNDS.noise1 = new SoundEffect(function() {
+  var r = [];
+  for(var i=0;i<100;i++) {
+    r.push([
+      100+Math.random()*400, 1-i/100, .001, 1
+    ])
+  }
+  return r;
+}(), 'sine');
+
+
+SOUNDS.ding = new SoundEffect(function() {
+  var r = [];
+  r = [
+    [440, .8, .1],
+    [880, .8, .1, 5],
+    [2500, .4, .1, 3],
+    [2500, 0, .4, 10],
+  ]
+  return r;
+}(), 'sine');
+
+SOUNDS.collect = new SoundEffect([
+  [440, .4, 0,1],
+  [880, .4, .05,2],
+  [880, 0, .1,10,MorphType.easeInCubic],
+],'sine')
+
+
+SOUNDS.drop = new SoundEffect([
+  [550, .4, 0,1],
+  [770, .4, .025,2],
+  [770, 0, .05,10,MorphType.easeInCubic],
+],'sine')
+
+var things = [];
+var currentScreen = null;
+
+var mouse = {x:0,y:0};
+
+window.addEventListener('mousemove', function(e) {
+  var rect = e.target.getBoundingClientRect();
+  mouse.x = (e.clientX-rect.left)*CE.width/rect.width;
+  mouse.y = (e.clientY-rect.top)*CE.height/rect.height;
+})
+
+window.addEventListener('mousedown', function(e) {
+  mouse.down = true;
+  mouse.held = true;
+})
+
+window.addEventListener('mouseup', function(e) {
+  mouse.held = false;
+  mouse.up = true;
+})
+
+window.addEventListener('touchstart', function(e) {
+  mouse.x = e.changedTouches[0].pageX;
+  mouse.y = e.changedTouches[0].pageY;
+  mouse.down = true;
+  mouse.held = true;
+  setUpSoundMobile();
+  e.preventDefault();
+})
+
+window.addEventListener('touchmove', function(e) {
+  mouse.x = e.changedTouches[0].pageX;
+  mouse.y = e.changedTouches[0].pageY;
+  e.preventDefault();
+  return false;
+})
+
+
+window.addEventListener('touchend', function(e) {
+  mouse.x = e.changedTouches[0].pageX;
+  mouse.y = e.changedTouches[0].pageY;
+  e.preventDefault();
+  mouse.up=true;
+  mouse.held=false;
+})
+
+var Color = {
+  copy: function(color) {
+    var r = {};
+    Object.assign(r, color);
+    return r;
+  },
+  update: function(color) {
+    color.color = Color.colorString(color.red,color.green,color.blue,color.alpha);
+  },
+  colorString: function(r,g,b,a) {
+    return 'rgba(' +
+      Math.floor(r) + ',' +
+      Math.floor(g) + ',' +
+      Math.floor(b) + ',' +
+      a +
+    ')';
+  },
+  darken: function(color, amt) {
+    if(!amt)amt=1;
+    var r = color.red * .6*amt;
+    var g = color.green * .7*amt;
+    var b = color.blue * .7*amt;
+    var a = color.alpha;
+    var color = Color.colorString(r,g,b,a);
+    return {red: r, green: g, blue: b, alpha:a, color: color}
+  },
+  lighten: function(color) {
+    var d = 9;
+    var r = (color.red + 255*d) / (d+1);
+    var g = (color.green + 255*d)/ (d+1);
+    var b = (color.blue + 255*d) /(d+1);
+    var a = color.alpha;
+    var color = Color.colorString(r,g,b,a);
+    return {red: r, green: g, blue: b, color: color}
+  }
+}
+
+function setScreen(screen) {
+  if(currentScreen&&currentScreen.leave)currentScreen.leave();
+  currentScreen = screen;
+  if(screen.init) screen.init();
+}
+
+function step() {
+  //do the everythings
+  canvas.clearRect(0,0,CE.width,CE.height);
+  if(currentScreen) {
+    currentScreen.update();
+    currentScreen.draw();
+  }
+  for(var i=0;i<things.length;i++) {
+    var thing = things[i];
+    thing.update();
+    thing.draw();
+    if(thing.shouldDelete) {
+      things.splice(i--, 1);
+    }
+  }
+  mouse.down = false;
+  mouse.up = false;
+  window.requestAnimationFrame(step);
+}
+
+function addThing(thing) {
+  thing.thingIndex = thing.length;
+  things.push(thing);
+  return thing;
+}
+
+class ThingHolder {
+  constructor() {
+    this.things = [];
+  }
+  addThing(thing) {
+    this.things.push(thing);
+    thing.parent = this;
+    return thing;
+  }
+  update() {
+    for(var i=0;i<this.things.length;i++) {
+      var e = this.things[i];
+      e.update();
+      if(e.shouldDelete) {
+        this.things.splice(i--,1);
+      }
+    }
+  }
+  draw() {
+    for(var i=0;i<this.things.length;i++) {
+      var e = this.things[i];
+      e.draw();
+    }
+  }
+}
+
+
+class Morph {
+  constructor(obj, start, end, time, type, callback) {
+    this.obj = obj;
+    this.start = start;
+    this.end = end;
+    this.time = time;
+    this.timer = 0;
+    this.active = false;
+    this._start = {};
+    this.morphType = type || MorphType.easeInOutCubic;
+    this.update = this.inactiveUpdate;
+    this.loops = false;
+    this.callback = callback;
+    this.deletes = false;    
+  }
+  activate() {
+    this.active = true;
+    this.setStartAttributes();
+    this.update = this.activeUpdate;
+    this.timer=0;
+  }
+  deactivate() {
+    if(this.deletes) this.shouldDelete = true;
+    if(this.loops) return this.activate();
+    this.active = false;
+    this.update = this.inactiveUpdate;
+    if(this.callback)
+    this.callback();
+  }
+  inactiveUpdate () {}
+  activeUpdate() {
+    this.timer += 1;    
+    if(this.timer>this.time) return this.deactivate();
+    this.morphAttributes();
+  }
+  setStartAttributes() {
+    for(var i in this.end) {
+      var s = this.start[i];
+      if(s==undefined) s = this.obj[i];
+      this._start[i] = s;
+    }
+  }
+  morphAttributes() {
+    var t = this.morphType(this.timer/this.time);
+    for(var i in this.end) {
+      var e = this.end[i];
+      var s = this._start[i];
+      this.obj[i] = s + (e-s)*t;      
+    }
+  }
+}
+
+class MorphGroup extends Morph {
+  constructor(obj, frames) {
+    super(obj, {}, {}, 0, 0);
+    this.obj = obj;
+    this.frames = frames;
+    this.timer = 0;
+    this.frameIndex = 0;
+    this.update = this.inactiveUpdate;
+  }
+  activate() {
+    this.frameIndex = 0;
+    this.startFrame();
+    super.activate();
+  }
+  startFrame() {
+    this.frame = this.frames[this.frameIndex];
+    if(this.frame[2]) this.morphType = this.frame[2];
+    else this.morphType = MorphType.easeInOutCubic;
+    this.timer = 0;
+    this.time = this.frame[1];
+    this.end = this.frame[0];    
+    this.setStartAttributes();
+  }
+  activeUpdate() {
+    this.timer += 1;    
+    if(this.timer>this.time) {
+      this.frameIndex += 1;
+      if(this.frame[3])this.frame[3](this.obj);
+      if(this.frameIndex >= this.frames.length) return this.deactivate();
+      this.startFrame();
+    }
+    this.morphAttributes();
+  }
+}
+class Fade {
+  constructor() {
+    this.text = 'hi';
+    this.x = CE.width/2;
+    this.y = CE.height/2;
+    this.time = 50;
+    this.timer = 0;
+    this.alpha = 0;
+  }
+  update() {
+    this.timer += 1;
+    this.alpha = this.timer/this.time;
+  }
+  draw() {
+    canvas.fillStyle = 'rgba(0,0,0,' + this.alpha + ')';
+    canvas.textAlign='center';
+    canvas.fillText(this.text, this.x,this.y);
+  }
+}
+
+class Drawable {
+  constructor(x,y,w,h) {
+    this.x=x;
+    this.y=y;
+    this.w=w;
+    this.h=h;
+    this.pivotX = this.w/2;
+    this.pivotY = this.h/2;
+    this.alpha = 1;
+    this.red=200;
+    this.green=200;
+    this.blue=200;
+    this.morphs = {};
+    this.angle = 0;
+    this.scaleW = 1;
+    this.scaleH = 1;
+    this.updates = [];
+    this.dx=0;
+    this.dy=0;
+    this.trueCoords=false;
+  }
+  setAspectScale(t) {
+    this.aspectScale = t;
+    return this;
+  }
+  colorObj(obj) {
+    this.red = obj.red;
+    this.green = obj.green;
+    this.blue = obj.blue;
+    if(obj.a!=undefined)this.alpha = obj.alpha;
+    return this;
+  }
+  color(r,g,b,a) {
+    this.red = r;
+    this.green=g;
+    this.blue = b;
+    if(a!=undefined)this.aplha = a;
+    this.color = Color.colorString(this);
+    return this;
+  }
+  center() {
+    this.x -= this.w/2;
+    this.y -= this.h/2;
+    return this;
+  }
+  pixelSpace() {
+    var W = CE.width;
+    var H = CE.height;
+    if(this.aspectScale)H = CE.width;
+    if(this.trueCoords){
+      W=1;
+      H=1;
+    }
+    return {
+      x: (this.x) * W,
+      y: (this.y) * H,
+      w: this.w * W,
+      h: this.h * H,
+      W:W, H:H,
+    }
+  }
+  contains(x,y) {
+    var ps = this.pixelSpace();
+    return x >= ps.x && x <= ps.x + ps.w && y >= ps.y && y <= ps.y+ps.h;
+  }
+  update() {
+    for(var i in this.morphs) {
+      this.morphs[i].update();
+      if(this.morphs[i].shouldDelete) {
+        delete this.morphs[i];
+      }
+    }
+    this.color = 'rgba(' +
+      Math.floor(this.red) + ',' +
+      Math.floor(this.green) + ',' +
+      Math.floor(this.blue) + ',' +
+      this.alpha + 
+    ')';
+    var ps = this.pixelSpace();
+    this._w = ps.w;
+    if(this.aspectScale) this._h = ps.h;
+    else this._h = this.h * ps.H;
+    for(var i=0;i<this.updates.length;i++) {
+      this.updates[i].call(this);
+    }
+  }
+  drawShape() {
+    canvas.strokeStyle = Color.darken(this, .8).color;
+    canvas.lineWidth = 10;
+    canvas.strokeRect(0,0,this._w,this._h);
+    canvas.fillRect(0,0,this._w,this._h);
+    canvas.fillStyle = Color.darken(this).color;
+    canvas.fillRect(0,0,this._w/4,this._h);
+    canvas.fillStyle = Color.lighten(this).color;    
+    canvas.fillRect(this._w*.4,this._h/10,this._w/2,this._h/4);   
+  }
+  draw() {
+    canvas.fillStyle = this.color;
+    canvas.save();
+    // canvas.scale(CE.width, CE.height);
+    var ps = this.pixelSpace();
+    var H = ps.H;
+    var x = (this.x+this.dx+this.pivotX) * ps.W;
+    var y = (this.y+this.dy+this.pivotY) * ps.H;
+    canvas.translate(x, y);
+    canvas.scale(this.scaleW, this.scaleH);
+    canvas.rotate(this.angle);
+    canvas.translate(-this.pivotX*ps.W, -this.pivotY*H);
+    this.drawShape(canvas);
+    canvas.restore();
+  }
+  addMorph(name, morph, activate, deletes) {
+    morph.obj = this;
+    morph.deletes = deletes;
+    if(activate) morph.activate();
+    this.morphs[name] = morph;
+    return this;
+  }
+}
+
+class DrawableTrue extends Drawable {
+  constructor(x,y,w,h) {
+    super(x,y,w,h);
+    this.trueCoords = true;
+  }
+}
+
+class DrawableText extends Drawable{
+  constructor(text,x,y,w,h,size) {
+    super(x,y,w,h);
+    this.text=text;
+    this.fontSize = size;
+    this.fontFamily = 'Courier';
+  }
+  drawShape() {
+    // super.drawShape();
+    var w = this._w;
+    var h = this._h;
+    // canvas.fillStyle=Color.darken(this).color;
+    // canvas.fillRect(0,0,w,h);
+    canvas.fillStyle=this.color;
+    var ps = this.pixelSpace();
+    canvas.font = this.fontSize*ps.W +'px ' + this.fontFamily;
+    canvas.textAlign = 'center';
+    canvas.textBaseline='middle';
+    canvas.fillText(this.text,w/2, h/2,w,h);
+  }
+}
+
+
+class ThingContainer extends Drawable{
+  constructor(x,y,w,h) {
+    super(x,y,w,h);
+    this.things = [];
+  }
+  addThing(thing) {
+    this.things.push(thing);
+    thing.parent = this;
+    return thing;
+  }
+  update() {
+    super.update();
+    for(var i=0;i<this.things.length;i++) {
+      var e = this.things[i];
+      e.update();
+      if(e.shouldDelete) {
+        this.things.splice(i--,1);
+      }
+    }
+  }
+  drawShape() {
+    for(var i=0;i<this.things.length;i++) {
+      var e = this.things[i];
+      e.draw();
+    }
+  }
+}
+
+class Interactable {
+  constructor(x,y,w,h, drawable) {
+    this.x=x;
+    this.y=y;
+    this.w=w;
+    this.h=h;
+    this.drawable = drawable;
+  }
+}
+
+function spawnABunchOfShit() {
+  // things.push(new Fade());
+  var hi = new DrawableText('hi', CE.width/2,CE.height/2,100,100, 30);
+  hi.pivotY=0;
+  // hi.addMorph('fade', new Morph(null, {alpha: 0}, {alpha: 1, red: 255, x: 100, fontSize: 100, angle: Math.PI*2}, 100));
+  hi.addMorph('animation1', new MorphGroup(hi, [
+    [{alpha: 0, x:hi.x,y:hi.y,angle:0}, 1],
+    [{alpha: 1, red: 255, x: 100, fontSize: 100, angle: Math.PI*2}, 100],
+    [{y: 100}, 10, MorphType.linear, function(obj) { obj.green = 100}],
+  ]));
+  hi.addMorph('size', new MorphGroup(hi,[
+    [{scaleW: 1}, 6],
+    [{scaleW: 2}, 6],
+  ]));
+  things.push(hi);
+
+  for(var i = 0; i < 500; i += 1) {
+    var x = CE.width/2;
+    var y = CE.height/2;
+    var el = new Drawable(x, y, 20,20,20);
+    var dx = (Math.random()-.5) * 2 * 300;
+    var dy = (Math.random()-.5) * 2 * 300;
+    var w = Math.random()*20+1;
+    var h = Math.random()*20+1;
+    var angle = Math.random()*Math.PI*2;
+    var r = Math.random()*255;
+    var g = Math.random()*255;
+    var b = Math.random()*255;
+    var t = 10 + Math.random()*200;
+    // el.update = function() {
+    //   Drawable.prototype.update.call(this);
+    //   this.x += Math.random()-.5;
+    //   this.y += Math.random()-.5;
+    //   this.angle += (Math.random()-.5) * Math.PI/20;
+    // }
+    el.addMorph(0, new Morph(null, 
+      {x: x,y:y, angle:0,w:20,h:20}, 
+      {x:x+dx,y:y+dy, angle:angle, w:w,h:h, red:r,green:g,blue:b},
+    t));
+    things.push(el);
+  }
+}
+
+class ButtonUI extends DrawableText{
+  constructor(text, x,y,w,h,size, callback, callback2) {
+    super(text, x,y,w,h,size);
+    this.addMorph('hoverOn', new Morph(null, {}, {scaleW: 1.2, scaleH:1.2}, 5, MorphType.easeOutQuad));
+    this.addMorph('hoverOff', new Morph(null, {}, {scaleW: 1, scaleH: 1}, 5));
+    this.addMorph('heldOn', new Morph(null, {}, {alpha: 0.5, scaleW: 1.1, scaleH: 1.1}, 10));    
+    this.addMorph('heldOff', new Morph(null, {}, {alpha: 1}, 10)); 
+    this.addMorph('click', new MorphGroup(null, [
+      [{alpha: 0.5, scaleW: 1.1, scaleH: 1.1}, 1],
+      [{scaleW: 1.23, scaleH:1.23, alpha: 1, dy: -.01}, 10],
+      [{scaleW: 1.2, scaleH:1.2, alpha: 1, dy: 0}, 5, null, this.onClick.bind(this)],
+    ]));
+    this.red = 250;
+    this.green = 250;
+    this.blue = 250;
+    this.callback = callback;
+    this.callback2 = callback2;
+    this.hoverSound = SOUNDS.hover;
+    this.pressSound = SOUNDS.press;
+    this.selectSound = SOUNDS.select;
+  }
+  onClick() {
+    if(!this.hover)this.offHover();
+    if(this.callback2)
+    this.callback2();
+  }
+  update() {
+    super.update();
+    if(this.contains(mouse.x,mouse.y)) {
+      if(!this.hover) {
+        this.hover = true;        
+        this.onHover();
+      }
+    } else if(this.hover){
+      this.hover = false;
+      this.offHover();
+    }
+    if(mouse.down && this.hover) {
+      this.held = true;
+      this.onHeld();
+      this.click();
+    }
+    if(mouse.up&&this.held) {
+      // if(this.held&&this.hover)this.click();
+      this.held = false;
+      this.offHeld();
+    }
+  }
+  onHover() {
+    this.morphs['hoverOff'].deactivate();
+    this.morphs['hoverOn'].activate();
+    if(this.hoverSound)this.hoverSound.play();
+  }
+  offHover() {
+    this.morphs['heldOn'].deactivate();      
+    this.morphs['hoverOn'].deactivate();      
+    this.morphs['hoverOff'].activate();
+  }
+  onHeld() {
+    this.morphs['heldOff'].deactivate();      
+    this.morphs['heldOn'].activate();
+    this.pressSound.play();
+  }
+  offHeld() {
+    this.morphs['heldOn'].deactivate();      
+    this.morphs['heldOff'].activate();
+  }
+  click() {
+    this.selectSound.play();
+    if(this.callback)
+    this.callback();
+    this.morphs['click'].activate();
+  }
+  drawShape() {
+    if(this.hover) {
+      canvas.strokeStyle = 'white';
+      // canvas.lineWidth = .001;      
+      canvas.strokeRect(0,0,this._w,this._h);
+    }
+    super.drawShape();
+  }
+}
+
+class SlidyPiece extends Drawable {
+  constructor(i,j,x,y,w,h) {
+    super(x,y,w,h);
+    this.i=i;
+    this.j=j;
+  }
+  update() {
+    super.update();
+    if(mouse.down && this.contains(mouse.x,mouse.y)) {
+      this.slide();
+    }
+  }
+  slide() {
+    this.parent.slide(this);
+  }
+}
+
+class SlidyGame extends ThingHolder{
+  constructor() {
+    super();
+    this.dimx = 3;
+    this.dimy = 3;
+    this.width = .8;
+    this.height = .8;
+    this.x = .5 - this.width/2;        
+    this.y = .5 - this.height/2;        
+  }
+  slide(piece) {
+    var i = piece.i;
+    var j = piece.j;
+    var hi = this.holex;
+    var hj = this.holey;
+    if(Math.abs(i-hi)+Math.abs(j-hj)>1)return;
+    var c = this.indexToCoord(hi,hj);
+    piece.i = hi;
+    piece.j = hj;
+    // piece.x = c.x+this.x;
+    // piece.y = c.y+this.y;
+    piece.addMorph(0, new Morph(null, {}, {x: c.x+this.x, y: c.y+this.y}, 10), true, true);
+    this.holex = i;
+    this.holey = j;
+  }
+  init() {
+    this.things = [];
+    this.matrix = [];
+    this.holex = 0;
+    this.holey = 0;
+    for(var j =0;j<this.dimy; j ++) {
+      this.matrix[j] = [];
+      for(var i = 0; i < this.dimx; i += 1) {
+        var piece = this.createPiece(i,j);
+        if(i!=this.holex||j!=this.holey) {
+          this.addThing(piece);
+          this.matrix[j][i] = piece; 
+        } else {
+          this.matrix[j][i] = null;         
+          this.missingPiece = piece;
+        }
+      }
+    }
+  }
+  indexToCoord(i,j) {
+    return {
+      x: i * this.width/this.dimx,
+      y: j * this.height/this.dimy,
+    }
+  }
+  createPiece(i,j) {
+    var c = this.indexToCoord(i,j);
+    var x = c.x + this.x;
+    var y = c.y + this.y;
+    var w = this.width/this.dimx;
+    var h = this.height/this.dimy;
+    var piece = new SlidyPiece(i,j, x,y,w,h);
+    piece.color(i*255/this.dimx, j*255/this.dimy, 0);
+    return piece;
+  }
+}
+
+function color(r,g,b,a) {
+  if(a==undefined)a=1;
+  var obj = {red: r, green: g, blue: b, alpha: a};
+  obj.color = Color.colorString(r,g,b,a);
+  return obj;
+}
+
+var ItemMap = [
+  {
+    name: 'bun',
+    color: color(200,130,120),
+    w: .1, h: .06, 
+  },{
+    name: 'meat',
+    color: color(180,80,85),
+    w: .11, h: .08,     
+    buff: function(obj) {obj.buffMaxHealth(10); obj.damage += 1; obj.speed -= 1}
+  },{
+    name: 'cheese',
+    color: color(240,245,100),
+    w: .11, h: .04,         
+    buff: function(obj) {obj.cheese += 1}        
+  }, {
+    name: 'lettuce',
+    color: color(120,250,140),
+    w: .11, h: .04,             
+    buff: function(obj) {obj.speed += 2}    
+  }, {
+    name: 'tomato',
+    color: color(200, 50,50),
+    w: .11, h: .04,              
+    buff: function(obj) {obj.buffMaxHealth(1)}           
+  }, {
+    name: 'onion',
+    color: color(255,240,220),
+    w: .11, h: .04,    
+    buff: function(obj) {obj.damage += 1}               
+  }, {
+    name: 'pickle',
+    color: color(40,120,40),
+    w: .11, h: .04,    
+    buff: function(obj) {obj.pickles += 1}    
+  }
+]
+
+class Plate extends ButtonUI {
+  constructor(text,x,y,w,h,size,callback,callback2) {
+    super(text,x,y,w,h,size,callback,callback2);
+    this.things = [];
+    this.order = [];
+    this.itemY = 0;
+    this.aspectScale = 1;
+    this.y = this.y * CE.height/CE.width;
+  }
+  onSelect() {
+    this.selected=true;
+    this.onHover();
+  }
+  offSelect() {
+    this.selected=false;
+    this.offHover();
+  }
+  offHover() {
+    if(this.selected)return;
+    super.offHover();
+  }
+  update() {
+    super.update();
+    for(var i in this.things)this.things[i].update();
+  }
+  drawShape() {
+    // super.drawShape();
+    canvas.fillRect(0,0,this._w,this._h);
+    // canvas.save();
+    // for(var i=0;i<this.stuff.length;i++) {
+    //   var item = this.stuff[i];
+    //   canvas.fillStyle = item.color;
+    //   canvas.fillText(item.text, this._w/2,-this._h/2*i,this._w,this._h);
+    //   // canvas.translate(0,-this._h/2);
+    //   // item.drawShape();
+    // }
+    for(var i in this.things)this.things[i].draw();
+    // canvas.restore();
+  }
+  addThing(thing) {
+    thing.parent = this;
+    this.things.push(thing);
+    return thing;
+  }
+  addItem(item) {
+    if(this.trashing)return;
+    // var j = this.things.length+1;
+    var i = item.itemIndex;
+    this.order.push(i);
+    var obj = ItemMap[i];
+    var w = obj.w||this.w;
+    var h = obj.h||this.h;
+    var dy = .035;
+    var thing = this.addThing(new Drawable(this.w/2,this.itemY+dy, w,.06))
+    // this.addThing(new DrawableText(obj.name, this.w/2,this.itemY+dy, w,.06,this.fontSize))
+      .center()
+      .setAspectScale(true)
+      .colorObj(obj.color)
+      .addMorph(0, new Morph(0, {angle:Math.PI/20, dy:-.5}, {angle:0, dy:0},10), true, true);
+    this.itemY -= h/4;
+    SOUNDS.plop.play();
+  }
+  trash() {
+    if(this.trashing||this.things.length==0)return;
+    this.trashing = true;
+    SOUNDS.trash.play();
+    for(var i=0;i<this.things.length;i++) {
+      var thing = this.things[i];
+      var f = null;
+      if(i==0) f = function(o) {
+        o.parent.trashed();
+      }
+      thing.addMorph(0, new MorphGroup(0,[
+        [{}, this.things.length-i],
+        [{dy:-.2,x:-this.x/2,angle:-Math.PI/20}, 7, MorphType.easeInOutQuad],
+        // [{dy:-.25, x:-this.x/2}, 10, MorphType.linear],
+        [{y:1-this.y,x:-this.x*.9,alpha:0,angle:-Math.PI/2}, 20, MorphType.easeInOutQuad, f]
+      ]), true,true)
+      thing.addMorph(1, new MorphGroup(0, [
+        [{}, this.things.length-i],        
+        [{angle: -Math.PI/2}, 20],
+      ]), true,true)
+    }
+    this.addMorph(12, new Morph(0,{},{alpha: .5}, 10),true,true);
+  }
+  trashed() {
+    setTimeout(function(){
+      this.trashing=false;
+      this.things = [];
+      this.order = [];
+      this.itemY = 0;
+    }.bind(this),0);
+    this.addMorph(12, new Morph(0,{},{alpha: 1}, 10),true,true);    
+  }
+}
+
+class Order extends ButtonUI {
+  constructor(x,y,w,h,order,level) {
+    super('',x,y,w,h);
+    this.callback = this.checkOrder.bind(this);
+    this.order = order;
+    // this.color(255,255,255);
+    this.color(20,20,30);
+    this.matching = false;
+    this.matchLength=0;
+    this.done = false;
+    this.time=0;
+    this.level=level||0;
+    this.maxTime = 1000 + this.order.length*500 + this.level * 500;
+    this.addMorph('onMatch', new Morph(0, {},{red:this.red,green:this.green,blue:this.blue, alpha: 1, dy:-.05,scaleW:1.1,scaleH:1.1,h:this.h}, 10));
+    this.addMorph('offMatch',new Morph(0, {},{red:this.red,green:this.green,blue:this.blue,alpha: .8, dy:.02,scaleW:1,scaleH:1,h:this.h}, 10));
+    this.addMorph('onDone',new Morph(0, {},{red:100,green:100,blue:50, alpha: 1, dy:-.015,scaleW:1.2,scaleH:1.2,h:this.h}, 10));
+  }
+  checkMatching() {
+    if(this.isMatching()) {
+      if(!this.matching) {
+        if(this.matchLength==this.order.length) {
+          this.morphs['onDone'].activate();
+        } else {
+          this.morphs['onMatch'].activate();
+        }
+      } else if(this.done&&this.matchLength!=this.order.length) {
+        this.done=false;
+        this.morphs['onMatch'].activate();
+      }
+      if(!this.done&&this.matchLength==this.order.length) {
+        this.morphs['onDone'].activate();
+        this.done=true;
+      } 
+      this.matching = true;
+    } else {
+      if(this.matching) this.morphs['offMatch'].activate();
+      this.matching=false;   
+      this.matchLength = 0;//this.order.length;        
+      this.done=false;
+    }
+  }
+  isMatching() {
+    var held = this.parent.held;
+    if(!held) return false;
+    if(held.order.length==0)return true;
+    for(var i in held.order) {
+      if(held.order[i] != this.order[i]) {
+        return false;
+      }
+    }
+    this.matchLength = held.order.length;
+    return true;
+  }
+  update() {
+    super.update();
+    this.checkMatching();
+    this.time+=1;
+  }
+  drawTimeIndicator() {
+    var t = this.time/this.maxTime;if(t>1)t=1;
+    var c = color(t*200,255 - t*255, 0,.8);
+    canvas.fillStyle=c.color;
+    canvas.beginPath();
+    canvas.arc(this._w/10,this._w/10,this._w/20,0,Math.PI*2);
+    canvas.fill();
+  }
+  drawLevelIndicator() {
+    var c = color(200,200,200,.25);
+    canvas.fillStyle=c.color;
+    canvas.beginPath();
+    for(var i=0;i<this.level+1;i++) {
+      canvas.arc(this._w-(i+1)*this._w/10,this._w/10,this._w/20,0,Math.PI*2);
+    }
+    canvas.fill();
+  }
+  drawShape() {
+    canvas.strokeStyle='rgba(0,0,0,'+this.alpha+')';
+    canvas.lineWidth = 10;
+    canvas.strokeRect(0,0,this._w,this._h);    
+    canvas.fillRect(0,0,this._w,this._h);
+    this.drawTimeIndicator();
+    this.drawLevelIndicator();
+    for(var i=0;i<this.order.length;i++) {
+      var item = ItemMap[this.order[i]];
+      var y = this._h*.9-.8*this._h*i/this.order.length;
+      var color = Color.copy(item.color);//Color.darken(item.color);
+      if((i<this.matchLength&&!this.done)||!this.matching) {
+        color.alpha = .3;
+        Color.update(color);
+      }
+      canvas.fillStyle = color.color;
+      canvas.font = '30px Courier';
+      canvas.fillText(item.name, this._w/2,y-this._h*.05, this._w*.6,this._h);
+    }
+  }
+  wrongOrder() {
+    var d = this.pressd || 0;
+    var text = ['Wrong Order','Trash plate', 'press x'][d];          
+    this.pressd = (d+1)%3;
+    this.parent.addThing(new TextEffect(text, this.x,this.y-this.h,this.w,this.h, .05))
+      .color(200,0,0);
+    this.parent.trashbtn.morphs['wiggle'].activate();;
+  }
+  checkOrder() {
+    var held = this.parent.held;
+    if(!held)return;
+    if(held.trashing)return;
+    if(held.order.length>this.order.length) return this.wrongOrder();
+    for(var i in this.order) {
+      if(this.order[i] != held.order[i]) {
+        if(this.matching||held.order.length==0) {
+          var ind = this.order[this.matchLength];
+          var item= ItemMap[ind];
+          var text = 'Need '+item.name;
+          this.parent.addThing(new TextEffect(text, this.x,this.y-this.h,this.w,this.h, .05))
+            .colorObj(item.color);
+        } else {
+          this.wrongOrder();
+        }
+        return;
+      }
+    }
+    this.parent.removeOrder(this, held);
+  }
+}
+class Meat extends ButtonUI {
+  constructor(text,x,y,w,h,size) {
+    super(text,x,y,w,h,size);
+    this.itemIndex = 1;    
+    this.meat =true;
+    this.colorObj(ItemMap[1].color);
+    this.addMorph('cook',
+      new Morph(15,{red: 255},{red: 170}, 500, null, this.onCooked.bind(this))
+    ,true,true);
+  }
+  update() {
+    super.update();
+  }
+  onCooked() {
+    this.cooked = true;
+    this.text = 'meat';
+    SOUNDS.sizzleDone.play();
+    this.addMorph('wibble',
+      new MorphGroup(0, [
+        [{scaleW:1.1,scaleH:1.1}, 5],
+        [{scaleW:1,scaleH:1}, 5],
+      ])
+    ,true,true);
+    this.addMorph('overcook',
+      new Morph(15,{},{red: 70,green:60,blue:60}, 1000, MorphType.easeInCubic, this.onOverCooked.bind(this))
+    ,true,true);
+  }
+  onOverCooked() {
+    SOUNDS.sizzleBurn.play();    
+    this.red=30;
+    this.green=30;
+    this.blue=30;
+    this.text='burnt';
+    this.overCooked = true;
+  }
+  click() {
+    super.click();
+    if(!this.cooked)return;
+    if(Meat.down)return;
+    Meat.down = true;
+    if(this.overCooked)return this.shouldDelete=true;
+    if(this.parent.selectItem(this)) {
+      this.shouldDelete = true;
+    }
+  }
+}
+// class Face extends Drawable {
+//   drawShape() {
+//     var s = this._w/10;
+//     canvas.fillRect(this._w, this._h*.2-s/2, s,s);
+//     canvas.fillRect(this._w, this._h*.8-s/2, s,s);
+//   }
+// }
+
+class Face extends Drawable {
+  drawShape() {
+    var s = this._w/8;
+    // canvas.fillRect(this._w*.4, this._h*.8-s/2, s,s);
+    // canvas.fillRect(this._w*.8, this._h*.8-s/2, s,s);
+    canvas.lineWidth = this._w/8;
+    canvas.strokeStyle = 'black';
+    canvas.beginPath();
+    canvas.moveTo(this._w*.4+s/2, this._h*.8);
+    canvas.lineTo(this._w*.4+s/2-s, this._h*.8-s);
+    canvas.moveTo(this._w*.8+s/2, this._h*.8);
+    canvas.lineTo(this._w*.8+s/2+s, this._h*.8-s);
+    canvas.stroke();
+  }
+}
+
+class Fighter extends ThingContainer {
+  constructor(x,y,w,h) {
+    super(x,y,w,h);
+    this.speed = 3;
+    this.damage= 1;
+    this.maxHealth = 5;
+    this.health = this.maxHealth;
+    this.moving = false;
+  }
+  die() {
+    this.shouldDelete = true;
+  }
+  takeDamage(damage, hitter) {
+    this.health -= damage;
+    if(this.health<=0)this.die(hitter);
+  }
+  attackHit() {
+    if(this.target&&this.target.takeDamage)
+    this.target.takeDamage(this.damage, this);
+    SOUNDS.noise1.play();
+  }
+  offAttack() {
+    this.attacking = false;
+  }
+  attack() {
+    this.attacking = true;
+    this.morphs['attack'].activate();
+  }
+  setMaxHealth(amt) {
+    this.maxHealth = amt;
+    this.health = amt;
+  }
+  buffMaxHealth(amt) {
+    this.maxHealth += amt;
+    this.health = this.maxHealth;
+  }
+  draw() {
+    super.draw();
+    canvas.fillStyle='red';
+    var w = this.w;
+    canvas.fillRect(this.x+this.w/2-w/2,this.y+this.h*1.1,w*this.health/this.maxHealth, this.h/4);
+  }
+
+  update() {
+    super.update();
+    if(this.moving) {
+      this.x += this.speed/3*this.direction;
+      var frq = Math.cos(this.x*Math.PI/15);
+      this.angle = frq*Math.PI/30;
+      if(this.x>CE.width+this.w||this.x<-this.w)this.shouldDelete=true;
+    }
+    if(!this.attacking) {
+      this.moving=true;
+      for(var i in this.parent.things) {
+        var thing = this.parent.things[i];
+        if(thing.team&&thing.team!=this.team) {
+          var ts = thing.pixelSpace();
+          var ps = this.pixelSpace();
+          if(this.direction==-1) {
+            var t = ts;
+            ts=ps;
+            ps=t;
+          }
+          if(ts.x < ps.x+ps.w) {
+            this.moving = false;
+            this.target = thing;
+            this.attack();
+            break;
+          }
+        }
+      }
+    }
+    // for(var i in this.things){
+    //   var thing = this.things[i];
+    //   thing.y = (thing.z/10)*(frq)*this.h/2/CE.width-thing.h/2;
+    //   thing.dx = (this.x-CE.width/2)/CE.width*(thing.z/10)*thing.w*2;
+    // }
+  }
+}
+
+class Chesburgr extends Fighter {
+  constructor(x,y,w,h,things,level) {
+    var scale = .4+level*.2;
+    super(x,y,w*scale,h*scale);
+    this.things = things;
+    this.aspectScale=1;
+    this.trueCoords=true;
+    // this.scaleW=.5;this.scaleH=.5;
+    
+    this.team=1;
+    var thing;
+    this.direction=1;
+    this.attacking = true;
+    for(var i=0;i<things.length;i++) {
+      thing= things[i];
+      thing.parent=this;
+      // thing.h=thing.w*.7;
+      thing.w*=scale;
+      thing.h*=scale;
+      thing.x=-thing.w/2+.035;
+      thing.z = i;
+      var f = null;
+      if(i==things.length-1) {
+        thing.h*=1.2;
+        thing.y-=thing.h/4;
+        f=function(obj) {
+          var face = obj.parent.addThing(new Face(thing.x,thing.y,thing.w,thing.h)).setAspectScale(1).color(0,0,0);
+          obj.parent.attacking = false;
+          obj.parent.moving=true;
+        }
+      }
+      thing.addMorph(0, new MorphGroup(0,[
+        [{dy:-1}, 1],
+        [{}, i*2],
+        [{dy:0}, 15,null,f],
+      ]), true,true);
+    }
+    // this.things.splice(this.things.length-1,1);
+    
+    // this.addThing(thing);
+    // face.z = thing.z-1;
+    var aa = Math.PI/4;
+    if(this.things.length<5)aa=Math.PI/2;
+    this.addMorph('attack', new MorphGroup(0,[
+      [{angle: -Math.PI/4,dy:-10,dx:-10}, 10],
+      [{angle: aa, dy:0,dx:40,scaleW:1.2,scaleH:1.2}, 2,null, this.attackHit.bind(this)],
+      [{dy:0,dx:20,scaleW:1,scaleH:1}, 10],
+      [{angle: 0, dy:0,dx:0}, 10, null, this.offAttack.bind(this)],
+    ]));
+  }
+  
+  drawShape() {
+    super.drawShape();
+    // canvas.fillStyle = Color.colorString(0,0,0,this.alpha);
+    // // canvas.fillRect(0,0,this._fw,this._h);
+    // var s = this._w/10;
+    // canvas.fillRect(this._w*.4, this._h*.1-s/2, s,s);
+    // canvas.fillRect(this._w*.7, this._h*.1-s/2, s,s);
+  }
+  die() {
+    super.die();
+    SOUNDS.die.play();
+  }
+}
+
+class Person extends Fighter {
+  constructor(x,y,w,h) {
+    super(x,y,w,h);
+    this.team=2;
+    this.direction=-1;
+    this.trueCoords = true;
+    this.addThing(new Drawable(this.w*.2,this.h*.9,this.w*.1,this.h*.1));
+    this.addThing(new Drawable(this.w*.7,this.h*.9,this.w*.1,this.h*.1));
+    this.addThing(new Drawable(this.w*.05,0,this.w*.9,this.h*.9));
+    this.addThing(new Drawable(0,0,this.w,this.h*.4)).color(220,200,120);
+    this.moving = true;
+    this.addMorph('attack', new MorphGroup(0,[
+      [{angle: Math.PI/4,dy:-10,dx:10}, 10],
+      [{angle: -Math.PI/20, dy:0,dx:-40,scaleW:1.2,scaleH:1.2}, 3,null,this.attackHit.bind(this)],
+      [{dy:0,dx:20,scaleW:1,scaleH:1}, 10],
+      [{angle: 0, dy:0,dx:0}, 10, null, this.offAttack.bind(this)],
+    ]));
+    this.health = 5;
+    this.damage = 1;
+    this.speed = 2;
+  }
+  addThing(thing) {
+    thing.trueCoords=true;
+    thing.scaleW=-1;
+    super.addThing(thing);
+    return thing;
+  }
+  die(hitter) {
+    super.die();
+    this.parent.rewardKill(this, hitter);
+  }
+}
+
+class Base extends Drawable {
+  constructor(x,y,w,h,team, health) {
+    super(x,y,w,h);
+    this.team=team;
+    this.maxHealth = health;
+    this.health = health;
+  }
+  drawShape() {
+    super.drawShape();
+    canvas.fillStyle='red';
+    var w = this._w;
+    canvas.fillRect(this._w/2-w/2,this._h*1.3,w*this.health/this.maxHealth, this._h/4);
+  }
+  takeDamage(damage) {
+    this.health -= damage;
+    if(this.health <=0)this.shouldDelete=true;
+  }
+}
+
+class Pickle extends Drawable {
+  constructor(x,y,w,h) {
+    super(x,y,w*2,h*2);
+    this.trueCoords=true;
+    this.color(60,200,100);
+    this.collected=false;
+    // var tx = x+(Math.random()-.5)*200;
+    var ty = y+(Math.random()-.5)*100;
+    this.ground=ty;
+    this.vx = (Math.random()-.5)*10;
+    this.vy = (Math.random()-.5)*10-10;
+    this.maxLife = 500;
+    this.life=this.maxLife;
+    // this.addMorph(0, new MorphGroup(0,[
+    //   [{x: (x+tx)/2, y: (y+ty)/2-10}, 5, MorphType.easeInCubic],      
+    //   [{x: tx, y: ty}, 20, MorphType.easeOutCubic],
+    // ]),true,true);
+  }
+  update() {
+    super.update();
+    this.life-=1;
+    if(this.life<=0)this.shouldDelete=true;
+    this.alpha = this.life/this.maxLife/2+.5;
+    if(!this.dropped) {
+      this.x+=this.vx;
+      this.y+=this.vy;
+      this.vy+=1;
+      if(this.y>this.ground&&this.vy>0) {
+        this.vx=0;
+        this.vy=0;
+        SOUNDS.drop.play();      
+        this.dropped = true;
+      }
+    }
+    if(!this.collected&&this.contains(mouse.x,mouse.y)) {
+      this.collected=true;
+      SOUNDS.collect.play();
+      this.addMorph(0, new MorphGroup(0,[
+        [{x:20,y:20}, 20, null, function(obj) {
+          obj.parent.incScore(5);
+          obj.shouldDelete=true;
+        }]
+      ]),true,true);
+    }
+  }
+}
+
+class FightyGame extends ThingHolder {
+  constructor(x,y,w,h) {
+    super();
+    this.x=x;this.y=y;
+    this.w=w;this.h=h;
+    this.maxHealth = 100;
+    this.enemyHealthScalar = 50;
+    this.level = 0;    
+    this.spawnTime=500;
+    this.spawnTimer=400;
+    this.spawnTime2=-1;
+    this.spawnTimer2=0;
+    this.spawnTime3=-1;
+    this.spawnTimer3=0;
+    this.baseDamage=0;
+    this.baseHealth=0;
+    this.baseSpeed=0;
+  }
+  rewardKill(enemy, hitter) {
+    var level = enemy.level;
+    this.cookyGame.incScore(10+level*level*20);
+    this.cookyGame.addThing(new Pickle(enemy.x,enemy.y,20,20));
+    this.cookyGame.addThing(new Pickle(enemy.x,enemy.y,20,20));
+    this.cookyGame.addThing(new Pickle(enemy.x,enemy.y,20,20));
+    for(var i=0;i<hitter.pickles;i++) {
+      this.cookyGame.addThing(new Pickle(enemy.x,enemy.y,20,20));
+      this.cookyGame.addThing(new Pickle(enemy.x,enemy.y,20,20));
+      this.cookyGame.addThing(new Pickle(enemy.x,enemy.y,20,20));
+    }
+  }
+  incScore(amt) {
+    this.cookyGame.incScore(amt);
+  }
+  win() {
+    this.cookyGame.incScore(100 + this.level * 100)    
+    this.level+=1;
+    this.startGame();
+    setScreen(Upgrades);
+    Upgrades.display.text='Completed Level ' + this.level +'!';
+  }
+  lose() {
+    Upgrades.display.text='Level ' + (this.level+1) +' Failed!';    
+    this.level-=1;
+    if(this.level<0)this.level=0;
+    this.startGame();
+    setScreen(Upgrades);    
+  }
+  update() {
+    super.update();
+    if(this.spawnTimer>this.spawnTime) {
+      this.spawnTimer=0;
+      this.spawnPerson(0);
+    }
+    this.spawnTimer += 1;
+    if(this.spawnTime2>0) {
+      if(this.spawnTimer2>this.spawnTime2) {
+        this.spawnTimer2=0;
+        this.spawnPerson(1);
+      }
+      this.spawnTimer2 += 1;
+    }
+    if(this.spawnTime3>0) {
+      if(this.spawnTimer3>this.spawnTime3) {
+        this.spawnTimer3=0;
+        this.spawnPerson(2);
+      }
+      this.spawnTimer3 += 1;
+    }
+    if(this.base.shouldDelete)this.lose();
+    if(this.enemyBase.shouldDelete)this.win();
+  }
+  spawnPerson(level) {
+    var bs = this.enemyBase.pixelSpace();
+    var s = 1+level*.5;
+    var person = new Person(bs.x+bs.w/2,bs.y+Math.random()*bs.h,30*s,50*s).center();
+    person.buffMaxHealth(level*5+this.level/5);
+    person.damage += level*2 + this.level/10;
+    person.level=level;
+    this.addThing(person);
+    this.things.sort(function(a,b){return a.y-b.y})    
+  }
+  startGame() {
+    var level = this.level;
+    this.things = [];
+    this.addThing(new TextEffect('Level ' + (level+1), .5,.2,.2,.1,.1, 100)).center();
+    this.health = this.maxHealth;
+    this.enemyHealth = 100+level*100;
+    this.base = this.addThing(new Base(.02,.15,.1,.1, 1, this.maxHealth));
+    this.enemyBase = this.addThing(new Base(.88,.15,.1,.1, 2, this.enemyHealth));
+    this.spawnTime = 500 - level*10;
+    this.spawnTime2=-1;
+    this.spawnTime3=-1;
+    if(level>0) this.spawnTime2 = 1000-level*10;
+    if(level>1) this.spawnTime3 = 2000-level*10;
+    if(this.spawnTime<100)this.spawnTime=100;
+    if(this.spawnTime2<200)this.spawnTime=200;
+    if(this.spawnTime3<400)this.spawnTime=400;
+    if(level==3) {
+      this.spawnTime=1000;
+      this.spawnTime2 = 500;
+    }
+    this.cookyGame.cardLevel = Math.min(level+1,3);
+  }
+  addChesburgr(plate,order) {
+    var bs = this.base.pixelSpace();
+    var ps = plate.pixelSpace();
+    var y = bs.y + Math.random()*bs.h;
+    var ches = this.addThing(new Chesburgr(bs.w/2,y,ps.w,ps.h, plate.things,order.level)).center();
+    this.applyBuffs(ches, plate,order);
+    this.things.sort(function(a,b){return a.y-b.y})
+  }
+  applyBuffs(ches, plate, order) {
+    var t = (order.time/order.maxTime);
+    if(t>1)t=1;
+    t=1-t;
+    t=t*t*t;
+    // ches.buffMaxHealth(t*10);
+    ches.buffMaxHealth(order.level*5+this.baseHealth);
+    ches.damage += order.level*2 + this.baseDamage;
+    ches.speed += t*5 + this.baseSpeed;
+    for(var i in plate.order) {
+      var item = ItemMap[plate.order[i]];
+      // ches.buffMaxHealth(1);
+      // ches.speed-=.2;
+      if(item&&item.buff) item.buff(ches);
+    }
+    if(ches.speed<1)ches.speed=1;
+  }
+}
+
+class TextEffect extends DrawableText {
+  constructor(text,x,y,w,h,size,len) {
+    super(text,x,y,w,h,size);
+    if(!len)len=40;
+    this.addMorph(0, new MorphGroup(0,[
+      [{dy: -.1, alpha: 0}, len, null, function(obj) {
+        obj.shouldDelete = true;
+      }]
+    ]),true);
+  }
+}
+
+class CookyGame extends ThingHolder {
+  constructor() {
+    super();
+    var self = this;
+    this.fightyGame = new FightyGame();
+    this.fightyGame.cookyGame= this;
+    this.itemIndex = 0;
+    var iw = .1;
+    var ih = .08;
+    this.spawns = 0;
+    this.score = 0;
+    this.scoreDisplay = this.addThing(new DrawableText('Pickles: 0', .05,.03,.2,.1,.03)).colorObj(ItemMap[6].color);
+    Upgrades.addThing(this.scoreDisplay);
+    
+    this.plate = this.addThing(new ButtonUI('plate', .25,.65,.15,.07,.05,this.addPlate.bind(this))).center().color(250,250,250);
+    this.bun = this.addItem(new ButtonUI('bun', .45,.65,.15,ih, .05)).center().color(200,130,120);
+    this.meat = this.addItem(new ButtonUI('patty', .625,.65,.15,ih, .05)).center().color(250,80,85);
+    this.meat.callback = function() {
+      this.parent.addRawMeat();
+    }
+    this.cheese = this.addItem(new ButtonUI('cheese', .45,.92,.15,ih, .05)).center().color(240,245,100);   
+    this.meat.selectSound = SOUNDS.sizzle;     
+    this.lettuce = this.addItem(new ButtonUI('lettuce', .25,.75,.15,ih, .05)).center().colorObj(ItemMap[3].color);
+    this.tomato = this.addItem(new ButtonUI('tomato', .45,.74,.15,ih, .05)).center().color(200, 50,50);
+    this.onion = this.addItem(new ButtonUI('onion', .25,.85,.15,ih, .05)).center().color(255,240,220);
+    this.pickle = this.addItem(new ButtonUI('pickle', .45,.825,.15,ih, .05)).center().colorObj(ItemMap[6].color);
+    this.trashbtn = this.addThing(new ButtonUI('x', .07, .75,.1,.2,.05, function() {
+      if(this.parent.held)this.parent.held.trash();
+    })).center().color(0,0,0);
+    this.trashbtn.addMorph('wiggle', new MorphGroup(0,[
+      [{scaleW:1.4,scaleH:1.4,dy:-.01,red:255,green:255,blue:255},5],
+      [{scaleW:1,scaleH:1,dy:0,red:100,green:100,blue:100},5],
+      [{scaleW:1.4,scaleH:1.4,dy:-.01,red:255,green:255,blue:255},5],
+      [{scaleW:1,scaleH:1,dy:0,red:100,green:100,blue:100},5],
+      [{scaleW:1.4,scaleH:1.4,dy:-.01,red:255,green:255,blue:255},5],
+      [{scaleW:1,scaleH:1,dy:0,red:0,green:0,blue:0},5],
+    ]))
+    // var self = this;
+    // this.addThing(new ButtonUI('*', .6,.3,.05,.05,.02,function(){
+    //   self.addOrder(0);
+    // }));
+    // this.addThing(new ButtonUI('**', .7,.3,.05,.05,.02,function(){
+    //   self.addOrder(1);
+    // }));
+    // this.addThing(new ButtonUI('***', .8,.3,.05,.05,.02,function(){
+    //   self.addOrder(2);
+    // }))
+
+    //A burger contains, Bun at beginning and end, meat somewhere in the middle, and any other shit in any order
+    //basically need to assign required lists {bun}, {acceptable toppings}*,{meat},{at}*, {bun},
+    this.foods = [];
+    this.burgerTemplate0 = [
+      [[this.bun.itemIndex], 1],
+      [[2,3,4,5,6], 1],
+      [[2,3,4,5,6], -1],      
+      [[this.bun.itemIndex], 1],      
+    ];
+    this.burgerTemplate1 = [
+      [[this.bun.itemIndex], 1],
+      [[2,3,4,5,6], -1],      
+      [[this.meat.itemIndex], 1],
+      [[this.cheese.itemIndex], -1],
+      [[this.bun.itemIndex], 1],      
+    ];
+    this.burgerTemplate2 = [
+      [[this.bun.itemIndex], 1],
+      [[2,3,4,5,6], -3],
+      [[this.meat.itemIndex], 1],
+      [[this.cheese.itemIndex], -1],
+      [[1,2,3,4,5,6], -3],
+      [[this.bun.itemIndex], 1],      
+    ];
+    this.burgerTemplate = this.burgerTemplate0;
+    this.foods.push(this.burgerTemplate0);
+    this.foods.push(this.burgerTemplate1);
+    this.foods.push(this.burgerTemplate2);
+
+    // var display = this.addItem(new DrawableText('', .5,.3,.4,.1,.05)).center();
+    // var order = this.createOrder(this.burgerTemplate);
+    // display.text = this.orderToString(order);
+    this.held = null;
+    this.plates = [];
+    this.orders = [];
+
+    //STUFF
+    this.numPlates = 3;
+    this.numOrders = 3;
+    this.cookTime = 500;
+    this.overCookTime = 1000;
+    this.cardLevel = 3;
+    this.baseCardTime = 1000;
+    this.condiments = 5;
+
+
+
+    for(var i=0;i<3;i++) this.plates[i] = 0;
+    for(var i=0;i<this.numOrders;i++) this.orders[i] = 0;
+    for(var i=0;i<this.numOrders;i++) this.addOrder(0);
+    // this.addOrder(0);
+
+
+    //Special Buffs
+    //delete one at a time
+    //
+
+    this.baseDamage = 0;
+    this.baseHealth = 0;
+    this.baseSpeed = 0;
+    this.maxHealth = 100;
+
+    //
+    //meat +health, +dmg, -spd
+    //lettuce +spd
+    //tomato +health
+    //onion +dmg
+    //pickle +pickle drop (gold)
+    //cheese health regen
+    //Time Bonus +health + speed
+    //level bonus +health + dmg
+    this.fightyGame.startGame();
+  }
+  init() {
+    this.handleKeys=this.handleKeys.bind(this);
+    window.addEventListener('keydown', this.handleKeys);
+  }
+  leave() {
+    window.removeEventListener('keydown', this.handleKeys);    
+  }
+  handleKeys(e) {
+    var k = e.keyCode;
+    switch(k) {
+      case 66:
+        this.bun.click();
+        break;
+      case 65:
+        this.meat.click();
+        break;
+      case 67:
+        this.cheese.click();
+        break;
+      case 76:
+        this.lettuce.click();
+        break;
+      case 84:
+        this.tomato.click();
+        break;
+      case 79:
+        this.onion.click();
+        break;
+      case 73:
+        this.pickle.click();
+        break;
+      case 80:
+        this.plate.click();
+        break;
+      case 49:
+        if(this.orders[0])this.orders[0].click();
+        break;
+      case 50:
+        if(this.orders[1])this.orders[1].click();
+        break;
+      case 51:
+        if(this.orders[2])this.orders[2].click();
+        break;
+      case 88:
+        this.trashbtn.click();
+        break;
+      case 27:
+        setScreen(Menu);
+        break;
+      case 77:
+        for(var i in this.things) {
+          var thing = this.things[i];
+          if(thing.meat&&thing.cooked) {
+            thing.click();
+            break;
+          }
+        }
+        break;
+    }
+  }
+  incScore(amt) {
+    this.score += amt;
+    if(this.score<0)this.score=0;
+    this.scoreDisplay.text = 'Pickles: ' + this.score;
+    if(amt>0) {
+      this.addThing(new TextEffect('+'+amt, this.scoreDisplay.x,this.scoreDisplay.y-.05,.1,.1,.03));
+    }
+  }
+  update() {
+    super.update();
+    this.fightyGame.update();
+    Meat.down=false;
+  }
+  draw() {
+    this.fightyGame.draw();
+    super.draw();
+  }
+  removeOrder(order, held) {
+    SOUNDS.ding.play();
+    this.plates[held.plateIndex]=0;
+    // held.shouldDelete = true;
+    // order.shouldDelete = true;
+    this.held = null;
+    this.orders[order.orderIndex]=0;
+    for(var i in this.plates) {
+      if(this.plates[i]) this.setHeld(this.plates[i]);
+    }
+    this.spawns += 1;
+    // for(var i = held.plateIndex+1;i!=held.plateIndex;i+=1) {
+    //   i=i%3;
+    //   if(this.plates[i]) {
+    //     this.setHeld(this.plates[i]);
+    //     break;
+    //   }
+    // }
+    // this.addOrder();
+      var self = this;
+    held.addMorph(0, new Morph(0,{},{x:1}, 30, null, function() {
+      this.obj.shouldDelete=true
+      self.fightyGame.addChesburgr(held, order);      
+    }), true, true);
+    order.addMorph(0, new Morph(0,{},{x:1}, 30,null,function() {this.obj.shouldDelete=true}), true, true);
+    // for(var i in this.orders)if(this.orders[i]) return;
+    this.addOrder();
+  }
+  addRawMeat() {
+    this.addThing(new Meat('patty', .575+.375*Math.random(),.65+.3*Math.random(),.1,.075,.05)).center();
+  }
+  addOrder(type) {
+    var i = -1;
+    for(var j=0;j<this.numOrders;j++) {
+      if(this.orders[j]==0) {
+        i=j; break;
+      }
+    }
+    if(i==-1)return;
+    var level = 0;
+    if(type!=undefined) {
+      level=type;
+      this.burgerTemplate = this.foods[type];
+    } else {
+      if(Math.random()>.5) {
+        level=0;
+        this.burgerTemplate = this.burgerTemplate0;
+      } else if(this.cardLevel>1){
+        if(this.cardLevel==2||Math.random()>.5) {
+          this.burgerTemplate = this.burgerTemplate1;
+          level=1;
+        } else {
+          this.burgerTemplate = this.burgerTemplate2;  
+          level=2;    
+        }      
+      }
+    }
+    var order = new Order(.6+.15*i, .5, .15,.2, this.createOrder(this.burgerTemplate),level).center().setAspectScale(0);
+    if(this.numOrders>1)order.angle = Math.PI/10 * (i/this.numOrders-.5);
+    order.addMorph(0, new Morph(0, {x: 1}, {x:order.x}, 30),true,true);
+    order.addMorph(0, new MorphGroup(0,[
+      [{y: -.3}, 1],
+      [{}, 30-i*4],
+      [{y: order.y}, 30],
+    ]),true,true);
+    this.orders[i] = order;
+    order.orderIndex = i;
+    this.addThing(order);
+  }
+  addPlate() {
+    var i = -1;
+    for(var j=0;j<this.numPlates;j++) {
+      if(this.plates[j]==0) {
+        i=j; break;
+      }
+    }
+    if(i==-1){
+      if(this.held) {
+        i = this.held.plateIndex;
+        for(var j=1;j<this.plates.length;j++) {
+          var ii = (i+j)%this.plates.length;
+          if(this.plates[ii]) {
+            this.setHeld(this.plates[ii]);
+            return;
+          }
+        }
+      }
+      return;
+    }
+    SOUNDS.tink.play();
+    var plate = this.addThing(new Plate('Plate', .1+i*.15, .52, .14,.09,.05, function() {
+      // if(!this.parent.held)return;
+      // this.stuff.push(this.parent.held);
+      // this.parent.held = null;
+      this.parent.setHeld(this);
+    })).color(250,250,250).center();
+    this.plates[i] = plate;
+    plate.plateIndex = i;
+    this.setHeld(plate);
+  }
+  setHeld(h) {
+    var held = this.held;
+    if(held) {
+      held.offSelect();
+    }
+    this.held = h;
+    h.onSelect();
+  }
+  orderToString(order) {
+    var result = '';
+    for(var i in order)result += order[i];
+    return result;
+  }
+  createOrder(template) {
+    var result = [];
+    for(var i=0;i<template.length;i++) {
+      var seq = template[i];
+      var options = seq[0];
+      var length = seq[1];
+      if(length<0) length = -Math.random()*(length-1)-1;
+      for(var j=0;j<length;j++) {
+        result.push(options[Math.floor(Math.random()*options.length)]);
+      }
+    }
+    return result;
+  }
+  addItem(thing) {
+    thing.itemIndex = this.itemIndex++;
+    thing.callback = function() {
+      this.parent.selectItem(this);
+    }
+    this.addThing(thing);
+    return thing;
+  }
+  selectItem(item) {
+    if(this.held) {
+      if(this.held.order.length==0&&item.itemIndex!=0) {
+        this.addThing(new TextEffect('Need Bun', item.x,item.y-item.h,item.w,item.h,item.fontSize));        
+        return false;
+      }
+      this.held.addItem(item);
+      if(item.itemIndex==6) {
+        this.incScore(-1);
+
+      }
+      return true;
+    } else {
+      this.addThing(new TextEffect('Need Plate', item.x,item.y-item.h,item.w,item.h,item.fontSize));
+    }
+  }
+}
+var Menu;
+var Upgrades;
+function start() {
+  step();
+  Menu = new ThingHolder();
+  Upgrades = new ThingHolder();  
+  var Game = new CookyGame();
+  var Options = new ThingHolder();
+  Upgrades.display = Upgrades.addThing(new DrawableText('',.5,.2,.5,.1,.05)).center().color(255,255,255);
+  Upgrades.addThing(new ButtonUI('Continue', .5,.8,.2,.1,.05,function() {
+    setScreen(Game);
+  })).center().color(200,255,255);
+  var hu = Upgrades.addThing(new ButtonUI('+Unit Health : 100 pickles', .5,.4,.5,.1,.05,function() {
+    if(Game.score>=this.cost) {
+      Game.fightyGame.baseHealth += 1;
+      Game.incScore(-this.cost);
+      this.cost = Math.floor(this.cost*1.5);
+      this.text = '+Unit Health : '+this.cost+' pickles';
+    } else {
+      Upgrades.addThing(new TextEffect('Not Enough Pickles', this.x,this.y-this.h,.4,.1,.05));
+    }
+  })).center().color(200,255,255);
+  hu.cost = 100;
+  var du = Upgrades.addThing(new ButtonUI('+Unit Damage : 100 pickles', .5,.55,.5,.1,.05,function() {
+    if(Game.score>=this.cost) {
+      Game.fightyGame.baseDamage += 1;
+      Game.incScore(-this.cost);
+      this.cost = Math.floor(this.cost*1.5);
+      this.text = '+Unit Damage : '+this.cost+' pickles';
+    } else {
+      Upgrades.addThing(new TextEffect('Not Enough Pickles', this.x,this.y-this.h,.4,.1,.05));
+    }
+  })).center().color(200,255,255);
+  du.cost = 100;
+  var su = Upgrades.addThing(new ButtonUI('+Unit Speed : 100 pickles', .5,.7,.5,.1,.05,function() {
+    if(Game.score>=this.cost) {
+      Game.fightyGame.baseSpeed += 1;
+      Game.incScore(-this.cost);
+      this.cost = Math.floor(this.cost*1.5);
+      this.text = '+Unit Speed : '+this.cost+' pickles';
+    } else {
+      Upgrades.addThing(new TextEffect('Not Enough Pickles', this.x,this.y-this.h,.4,.1,.05));
+    }
+  })).center().color(200,255,255);
+  su.cost = 100;
+  Game.addThing(new ButtonUI('Menu', .92,.08,.08,.08,.03, function() {
+    setScreen(Menu);
+  })).center();
+  // Menu.addThing(new DrawableText('CHESBURGR REBELLION', .5,.36, .81,.2, .11)).center().color(0,0,0);  
+  Menu.addThing(new DrawableText('Chesburgrellia', .5,.35, .8,.2, .08)).center().color(255,255,255);
+  var hello = new ButtonUI('Play', .5, .525, .25,.1,.05, null, function() {
+    setScreen(Game);
+  });hello.center();
+  Menu.addThing(new ButtonUI('Options', .5, .65, .25, .1, .05, null, function(){
+    setScreen(Options)
+  })).center();
+  function keyStart() {
+    setScreen(Game);
+  }
+  Menu.init=function() {
+    window.addEventListener('keydown', keyStart);
+  }
+  Menu.leave = function() {
+    window.removeEventListener('keydown',keyStart);    
+  }
+  // hello.addMorph(0, new Morph(null, {alpha: 0}, {alpha: 1}, 100, null, function() {
+  // }), true)
+  Menu.addThing(hello);
+
+  Options.addThing(new ButtonUI('Back', .2, .2, .2, .1, .05, null,function() {
+    setScreen(Menu);
+  }).center());
+  Options.addThing(new DrawableText('Sounds:', .5, .4, .2, .1, .05).center());
+  var volumeDisplay = new DrawableText('50', .5, .5, .1, .1, .05).center();
+  var volumeDisplay2 = new Drawable(.5, .5, .02, .05).center().color(0,0,0);
+  Options.addThing(volumeDisplay2);
+  Options.addThing(volumeDisplay);
+  Options.addThing(new ButtonUI('<', .35, .5, .1, .1, .05, function() {
+    setVolume(volume - 10);
+    volumeDisplay.text = volume;
+    volumeDisplay2.x = .4 + (.2-volumeDisplay2.w) * volume/100;
+  }).center());
+  Options.addThing(new ButtonUI('>', .65, .5, .1, .1, .05, function() {
+    setVolume(volume + 10);
+    volumeDisplay2.x = .4 + (.2-volumeDisplay2.w) * volume/100;
+    volumeDisplay.text = volume;
+  }).center());
+  Options.addThing(new ButtonUI('Mute', .5, .6, .15, .075, .04, function() {
+    setVolume(0);
+    volumeDisplay2.x = .4 + (.2-volumeDisplay2.w) * volume/100;
+    volumeDisplay.text = volume;
+  }).center());
+
+  Options.addThing(new DrawableText('Music:', .5, .7, .2, .1, .05).center());  
+  var musicDisplay = new DrawableText('50', .5, .8, .1, .1, .05).center();
+  var musicDisplay2 = new Drawable(.5, .8, .02, .05).center().color(0,0,0);
+  Options.addThing(musicDisplay);
+  Options.addThing(musicDisplay2);
+  var musicVolume = 50;
+  function setMusic(v) {
+    if(v<0)v=0;
+    if(v>100)v=100;
+    musicVolume = v;    
+    myAudio.volume = musicVolume/100;
+  }
+  Options.addThing(new ButtonUI('<', .35, .8, .1, .1, .05, function() {
+    setMusic(musicVolume - 10);
+    musicDisplay.text = musicVolume;
+    musicDisplay2.x = .4 + (.2-musicDisplay2.w) * musicVolume/100;
+  }).center());
+  Options.addThing(new ButtonUI('>', .65, .8, .1, .1, .05, function() {
+    setMusic(musicVolume + 10);
+    musicDisplay2.x = .4 + (.2-musicDisplay2.w) * musicVolume/100;
+    musicDisplay.text = musicVolume;
+  }).center());
+  Options.addThing(new ButtonUI('Mute', .5, .9, .15, .075, .04, function() {
+    setMusic(0);
+    musicDisplay2.x = .4 + (.2-musicDisplay2.w) * musicVolume/100;
+    musicDisplay.text = musicVolume;
+  }).center());
+
+
+  setScreen(Menu);
+}
+
+
+window.onload = function() {
+  start();
+}
+
+</script>
