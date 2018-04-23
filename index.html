@@ -1304,7 +1304,9 @@ class Order extends ButtonUI {
       if(this.order[i] != held.order[i]) {
         if(this.matching||held.order.length==0) {
           var ind = this.order[this.matchLength];
+          if(ind==undefined)return;
           var item= ItemMap[ind];
+          if(!item)return;
           var text = 'Need '+item.name;
           this.parent.addThing(new TextEffect(text, this.x,this.y-this.h,this.w,this.h, .05))
             .colorObj(item.color);
