@@ -1285,6 +1285,7 @@ class Order extends ButtonUI {
       canvas.fillStyle = color.color;
       canvas.font = '30px Courier';
       canvas.fillText(item.name, this._w/2,y-this._h*.05, this._w*.6,this._h);
+      // canvas.fillRect(0,y-this._h*.05, this._w*.6,this._h/2);
     }
   }
   wrongOrder() {
@@ -1476,6 +1477,8 @@ class Chesburgr extends Fighter {
     this.things = things;
     this.aspectScale=1;
     this.trueCoords=true;
+    this.pickles=0;
+    this.cheese=0;
     // this.scaleW=.5;this.scaleH=.5;
     
     this.team=1;
